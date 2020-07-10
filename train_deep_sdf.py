@@ -3,6 +3,9 @@
 
 import torch
 import torch.utils.data as data_utils
+
+import tensorflow as tf
+
 import signal
 import sys
 import os
@@ -51,6 +54,7 @@ class WarmupLearningRateSchedule(LearningRateSchedule):
         return self.initial + (self.warmed_up - self.initial) * epoch / self.length
 
 
+# no rewrite
 def get_learning_rate_schedules(specs):
 
     schedule_specs = specs["LearningRateSchedule"]
@@ -76,7 +80,8 @@ def get_learning_rate_schedules(specs):
                 )
             )
         elif schedule_specs["Type"] == "Constant":
-            schedules.append(ConstantLearningRateSchedule(schedule_specs["Value"]))
+            schedules.append(ConstantLearningRateSchedule(
+                schedule_specs["Value"]))
 
         else:
             raise Exception(
@@ -88,20 +93,26 @@ def get_learning_rate_schedules(specs):
     return schedules
 
 
+# need to rewrite
 def save_model(experiment_directory, filename, decoder, epoch):
 
     model_params_dir = ws.get_model_params_dir(experiment_directory, True)
 
+    # TODO:
     torch.save(
         {"epoch": epoch, "model_state_dict": decoder.state_dict()},
         os.path.join(model_params_dir, filename),
     )
 
+# need to rewrite
+
 
 def save_optimizer(experiment_directory, filename, optimizer, epoch):
 
-    optimizer_params_dir = ws.get_optimizer_params_dir(experiment_directory, True)
+    optimizer_params_dir = ws.get_optimizer_params_dir(
+        experiment_directory, True)
 
+    # TODO:
     torch.save(
         {"epoch": epoch, "optimizer_state_dict": optimizer.state_dict()},
         os.path.join(optimizer_params_dir, filename),
@@ -126,19 +137,21 @@ def load_optimizer(experiment_directory, filename, optimizer):
     return data["epoch"]
 
 
+# need to rewrite
 def save_latent_vectors(experiment_directory, filename, latent_vec, epoch):
 
     latent_codes_dir = ws.get_latent_codes_dir(experiment_directory, True)
 
     all_latents = latent_vec.state_dict()
 
+    # TODO:
     torch.save(
         {"epoch": epoch, "latent_codes": all_latents},
         os.path.join(latent_codes_dir, filename),
     )
 
 
-# TODO: duplicated in workspace
+# TODO:: duplicated in workspace
 def load_latent_vectors(experiment_directory, filename, lat_vecs):
 
     full_filename = os.path.join(
@@ -146,7 +159,8 @@ def load_latent_vectors(experiment_directory, filename, lat_vecs):
     )
 
     if not os.path.isfile(full_filename):
-        raise Exception('latent state file "{}" does not exist'.format(full_filename))
+        raise Exception(
+            'latent state file "{}" does not exist'.format(full_filename))
 
     data = torch.load(full_filename)
 
@@ -228,6 +242,7 @@ def clip_logs(loss_log, lr_log, timing_log, lat_mag_log, param_mag_log, epoch):
     return (loss_log, lr_log, timing_log, lat_mag_log, param_mag_log)
 
 
+# no rewrite
 def get_spec_with_default(specs, key, default):
     try:
         return specs[key]
@@ -285,25 +300,31 @@ def main_function(experiment_directory, continue_from, batch_split):
 
     def save_latest(epoch):
 
-        save_model(experiment_directory, "latest.pth", decoder, epoch)
-        save_optimizer(experiment_directory, "latest.pth", optimizer_all, epoch)
-        save_latent_vectors(experiment_directory, "latest.pth", lat_vecs, epoch)
+        save_model(experiment_directory, "latest.ckpt", decoder, epoch)
+        save_optimizer(experiment_directory,
+                       "latest.ckpt", optimizer_all, epoch)
+        save_latent_vectors(experiment_directory,
+                            "latest.ckpt", lat_vecs, epoch)
 
     def save_checkpoints(epoch):
 
-        save_model(experiment_directory, str(epoch) + ".pth", decoder, epoch)
-        save_optimizer(experiment_directory, str(epoch) + ".pth", optimizer_all, epoch)
-        save_latent_vectors(experiment_directory, str(epoch) + ".pth", lat_vecs, epoch)
+        save_model(experiment_directory, str(epoch) + ".ckpt", decoder, epoch)
+        save_optimizer(experiment_directory, str(
+            epoch) + ".ckpt", optimizer_all, epoch)
+        save_latent_vectors(experiment_directory, str(
+            epoch) + ".ckpt", lat_vecs, epoch)
 
     def signal_handler(sig, frame):
         logging.info("Stopping early...")
         sys.exit(0)
 
+    # TODO: optimizer.param_groups
     def adjust_learning_rate(lr_schedules, optimizer, epoch):
 
         for i, param_group in enumerate(optimizer.param_groups):
             param_group["lr"] = lr_schedules[i].get_learning_rate(epoch)
 
+    # TODO:
     def empirical_stat(latent_vecs, indices):
         lat_mat = torch.zeros(0).cuda()
         for ind in indices:
@@ -321,17 +342,21 @@ def main_function(experiment_directory, continue_from, batch_split):
     maxT = clamp_dist
     enforce_minmax = True
 
-    do_code_regularization = get_spec_with_default(specs, "CodeRegularization", True)
-    code_reg_lambda = get_spec_with_default(specs, "CodeRegularizationLambda", 1e-4)
+    do_code_regularization = get_spec_with_default(
+        specs, "CodeRegularization", True)
+    code_reg_lambda = get_spec_with_default(
+        specs, "CodeRegularizationLambda", 1e-4)
 
     code_bound = get_spec_with_default(specs, "CodeBound", None)
 
-    decoder = arch.Decoder(latent_size, **specs["NetworkSpecs"]).cuda()
+    decoder = arch.Decoder(latent_size, **specs["NetworkSpecs"])
 
-    logging.info("training with {} GPU(s)".format(torch.cuda.device_count()))
+    logging.info("training with {} GPU(s)".format(
+        len(tf.config.experimental.list_physical_devices('GPU'))))
 
     # if torch.cuda.device_count() > 1:
-    decoder = torch.nn.DataParallel(decoder)
+    # TODO:::
+    #decoder = torch.nn.DataParallel(decoder)
 
     num_epochs = specs["NumEpochs"]
     log_frequency = get_spec_with_default(specs, "LogFrequency", 10)
@@ -339,13 +364,19 @@ def main_function(experiment_directory, continue_from, batch_split):
     with open(train_split_file, "r") as f:
         train_split = json.load(f)
 
+    # TODO:
+    # make dataset class
     sdf_dataset = deep_sdf.data.SDFSamples(
         data_source, train_split, num_samp_per_scene, load_ram=False
     )
 
-    num_data_loader_threads = get_spec_with_default(specs, "DataLoaderThreads", 1)
-    logging.debug("loading data with {} threads".format(num_data_loader_threads))
+    num_data_loader_threads = get_spec_with_default(
+        specs, "DataLoaderThreads", 1)
+    logging.debug("loading data with {} threads".format(
+        num_data_loader_threads))
 
+    # TODO:
+    # make dataset class
     sdf_loader = data_utils.DataLoader(
         sdf_dataset,
         batch_size=scene_per_batch,
@@ -354,8 +385,12 @@ def main_function(experiment_directory, continue_from, batch_split):
         drop_last=True,
     )
 
+    # TODO:
+    # what about multi thread process?
     logging.debug("torch num_threads: {}".format(torch.get_num_threads()))
 
+    # TODO:
+    # make dataset class
     num_scenes = len(sdf_dataset)
 
     logging.info("There are {} scenes".format(num_scenes))
@@ -366,7 +401,8 @@ def main_function(experiment_directory, continue_from, batch_split):
     torch.nn.init.normal_(
         lat_vecs.weight.data,
         0.0,
-        get_spec_with_default(specs, "CodeInitStdDev", 1.0) / math.sqrt(latent_size),
+        get_spec_with_default(specs, "CodeInitStdDev",
+                              1.0) / math.sqrt(latent_size),
     )
 
     logging.debug(
@@ -375,8 +411,11 @@ def main_function(experiment_directory, continue_from, batch_split):
         )
     )
 
-    loss_l1 = torch.nn.L1Loss(reduction="sum")
+    # CHECK:
+    def loss_l1(y_pred, y_true):
+        return tf.math.reduce_sum((y_pred - y_true))
 
+    # TODO:
     optimizer_all = torch.optim.Adam(
         [
             {
@@ -498,7 +537,8 @@ def main_function(experiment_directory, continue_from, batch_split):
                 if enforce_minmax:
                     pred_sdf = torch.clamp(pred_sdf, minT, maxT)
 
-                chunk_loss = loss_l1(pred_sdf, sdf_gt[i].cuda()) / num_sdf_samples
+                chunk_loss = loss_l1(
+                    pred_sdf, sdf_gt[i].cuda()) / num_sdf_samples
 
                 if do_code_regularization:
                     l2_size_loss = torch.sum(torch.norm(batch_vecs, dim=1))
@@ -527,7 +567,8 @@ def main_function(experiment_directory, continue_from, batch_split):
         seconds_elapsed = end - start
         timing_log.append(seconds_elapsed)
 
-        lr_log.append([schedule.get_learning_rate(epoch) for schedule in lr_schedules])
+        lr_log.append([schedule.get_learning_rate(epoch)
+                       for schedule in lr_schedules])
 
         lat_mag_log.append(get_mean_latent_vector_magnitude(lat_vecs))
 
@@ -554,7 +595,8 @@ if __name__ == "__main__":
 
     import argparse
 
-    arg_parser = argparse.ArgumentParser(description="Train a DeepSDF autodecoder")
+    arg_parser = argparse.ArgumentParser(
+        description="Train a DeepSDF autodecoder")
     arg_parser.add_argument(
         "--experiment",
         "-e",
@@ -588,4 +630,5 @@ if __name__ == "__main__":
 
     deep_sdf.configure_logging(args)
 
-    main_function(args.experiment_directory, args.continue_from, int(args.batch_split))
+    main_function(args.experiment_directory,
+                  args.continue_from, int(args.batch_split))
