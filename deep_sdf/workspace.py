@@ -21,6 +21,7 @@ normalization_param_subdir = "NormalizationParameters"
 training_meshes_subdir = "TrainingMeshes"
 
 
+# DONE
 def load_experiment_specifications(experiment_directory):
 
     filename = os.path.join(experiment_directory, specifications_filename)
@@ -34,6 +35,7 @@ def load_experiment_specifications(experiment_directory):
     return json.load(open(filename))
 
 
+# TODO:
 def load_model_parameters(experiment_directory, checkpoint, decoder):
 
     filename = os.path.join(
@@ -41,7 +43,8 @@ def load_model_parameters(experiment_directory, checkpoint, decoder):
     )
 
     if not os.path.isfile(filename):
-        raise Exception('model state dict "{}" does not exist'.format(filename))
+        raise Exception(
+            'model state dict "{}" does not exist'.format(filename))
 
     data = torch.load(filename)
 
@@ -50,6 +53,7 @@ def load_model_parameters(experiment_directory, checkpoint, decoder):
     return data["epoch"]
 
 
+# DONE
 def build_decoder(experiment_directory, experiment_specs):
 
     arch = __import__(
@@ -58,11 +62,13 @@ def build_decoder(experiment_directory, experiment_specs):
 
     latent_size = experiment_specs["CodeLength"]
 
-    decoder = arch.Decoder(latent_size, **experiment_specs["NetworkSpecs"]).cuda()
+    decoder = arch.Decoder(
+        latent_size, **experiment_specs["NetworkSpecs"])
 
     return decoder
 
 
+# TODO:
 def load_decoder(
     experiment_directory, experiment_specs, checkpoint, data_parallel=True
 ):
@@ -71,12 +77,14 @@ def load_decoder(
 
     if data_parallel:
         decoder = torch.nn.DataParallel(decoder)
+    # what about parallel
 
     epoch = load_model_parameters(experiment_directory, checkpoint, decoder)
 
     return (decoder, epoch)
 
 
+# TODO:
 def load_latent_vectors(experiment_directory, checkpoint):
 
     filename = os.path.join(
@@ -112,14 +120,15 @@ def load_latent_vectors(experiment_directory, checkpoint):
         return lat_vecs.weight.data.detach()
 
 
+# TODO:
 def get_data_source_map_filename(data_dir):
     return os.path.join(data_dir, data_source_map_filename)
 
 
+# DONE
 def get_reconstructed_mesh_filename(
     experiment_dir, epoch, dataset, class_name, instance_name
 ):
-
     return os.path.join(
         experiment_dir,
         reconstructions_subdir,
@@ -131,10 +140,10 @@ def get_reconstructed_mesh_filename(
     )
 
 
+# DONE
 def get_reconstructed_code_filename(
     experiment_dir, epoch, dataset, class_name, instance_name
 ):
-
     return os.path.join(
         experiment_dir,
         reconstructions_subdir,
@@ -146,6 +155,7 @@ def get_reconstructed_code_filename(
     )
 
 
+# DONE
 def get_evaluation_dir(experiment_dir, checkpoint, create_if_nonexistent=False):
 
     dir = os.path.join(experiment_dir, evaluation_subdir, checkpoint)
@@ -156,6 +166,7 @@ def get_evaluation_dir(experiment_dir, checkpoint, create_if_nonexistent=False):
     return dir
 
 
+# DONE
 def get_model_params_dir(experiment_dir, create_if_nonexistent=False):
 
     dir = os.path.join(experiment_dir, model_params_subdir)
@@ -166,6 +177,7 @@ def get_model_params_dir(experiment_dir, create_if_nonexistent=False):
     return dir
 
 
+# DONE
 def get_optimizer_params_dir(experiment_dir, create_if_nonexistent=False):
 
     dir = os.path.join(experiment_dir, optimizer_params_subdir)
@@ -176,6 +188,7 @@ def get_optimizer_params_dir(experiment_dir, create_if_nonexistent=False):
     return dir
 
 
+# DONE
 def get_latent_codes_dir(experiment_dir, create_if_nonexistent=False):
 
     dir = os.path.join(experiment_dir, latent_codes_subdir)
@@ -186,6 +199,7 @@ def get_latent_codes_dir(experiment_dir, create_if_nonexistent=False):
     return dir
 
 
+# DONE
 def get_normalization_params_filename(
     data_dir, dataset_name, class_name, instance_name
 ):
