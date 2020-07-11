@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 # Copyright 2004-present Facebook. All Rights Reserved.
 
-import torch.nn as nn
-import torch
-import torch.nn.functional as F
+import tensorflow as tf
+import tensorflow_addons as tfa
 
 
-class Decoder(nn.Module):
+class Decoder(tf.keras.Model):
     def __init__(
         self,
         latent_size,
@@ -32,8 +31,9 @@ class Decoder(nn.Module):
         self.latent_in = latent_in
         self.latent_dropout = latent_dropout
         if self.latent_dropout:
-            self.lat_dp = nn.Dropout(0.2)
-
+            self.lat_dp = tf.keras.layers.Dropout(0.2)
+        self.dropout_prob = dropout_prob
+        self.dropout = dropout
         self.xyz_in_all = xyz_in_all
         self.weight_norm = weight_norm
 
@@ -49,44 +49,50 @@ class Decoder(nn.Module):
                 setattr(
                     self,
                     "lin" + str(layer),
-                    nn.utils.weight_norm(nn.Linear(dims[layer], out_dim)),
+                    tfa.layers.WeightNormalization(tf.keras.Dense(
+                        out_dim, input_shape=(None, dims[layer])))
                 )
             else:
-                setattr(self, "lin" + str(layer), nn.Linear(dims[layer], out_dim))
+                setattr(self, "lin" + str(layer),
+                        tf.keras.layers.Dense(out_dim, input_shape=(None, dims[layer])))
 
             if (
                 (not weight_norm)
                 and self.norm_layers is not None
                 and layer in self.norm_layers
             ):
-                setattr(self, "bn" + str(layer), nn.LayerNorm(out_dim))
+                setattr(self, "bn" + str(layer),
+                        tf.keras.layers.LayerNormalization(input_shape=(None, out_dim)))
+            if self.dropout is not None and layer in self.dropout:
+                setattr(self, "dp" + str(layer),
+                        tf.keras.layers.Dropout(self.dropout_prob))
 
         self.use_tanh = use_tanh
         if use_tanh:
-            self.tanh = nn.Tanh()
-        self.relu = nn.ReLU()
+            self.tanh = tf.keras.layers.Activation('tanh')
 
-        self.dropout_prob = dropout_prob
-        self.dropout = dropout
-        self.th = nn.Tanh()
+        self.relu = tf.keras.layers.Activation('relu')
+
+        self.th = tf.keras.layers.Activation('tanh')
 
     # input: N x (L+3)
-    def forward(self, input):
+
+    def call(self, input):
         xyz = input[:, -3:]
 
         if input.shape[1] > 3 and self.latent_dropout:
             latent_vecs = input[:, :-3]
-            latent_vecs = F.dropout(latent_vecs, p=0.2, training=self.training)
-            x = torch.cat([latent_vecs, xyz], 1)
+            latent_vecs = self.lat_dp(latent_vecs)
+            x = tf.concat([latent_vecs, xyz], axis=1)
         else:
             x = input
 
         for layer in range(0, self.num_layers - 1):
             lin = getattr(self, "lin" + str(layer))
             if layer in self.latent_in:
-                x = torch.cat([x, input], 1)
+                x = tf.concat([x, input], axis=1)
             elif layer != 0 and self.xyz_in_all:
-                x = torch.cat([x, xyz], 1)
+                x = tf.concat([x, xyz], axis=1)
             x = lin(x)
             # last layer Tanh
             if layer == self.num_layers - 2 and self.use_tanh:
@@ -101,7 +107,8 @@ class Decoder(nn.Module):
                     x = bn(x)
                 x = self.relu(x)
                 if self.dropout is not None and layer in self.dropout:
-                    x = F.dropout(x, p=self.dropout_prob, training=self.training)
+                    dp = getattr(self, "dp" + str(layer))
+                    x = dp(x)
 
         if hasattr(self, "th"):
             x = self.th(x)

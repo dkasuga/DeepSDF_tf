@@ -1,3 +1,7 @@
 todo.md
 .python-version
+<<<<<<< HEAD
 .vscode
+=======
+.vscode/
+>>>>>>> model
