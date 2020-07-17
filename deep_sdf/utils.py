@@ -2,7 +2,8 @@
 # Copyright 2004-present Facebook. All Rights Reserved.
 
 import logging
-import torch
+
+import tensorflow as tf
 
 
 def add_common_args(arg_parser):
@@ -54,9 +55,9 @@ def decode_sdf(decoder, latent_vector, queries):
     if latent_vector is None:
         inputs = queries
     else:
-        latent_repeat = latent_vector.expand(num_samples, -1)
-        inputs = torch.cat([latent_repeat, queries], 1)
+        latent_repeat = tf.broadcast_to(latent_vector, [num_samples, -1])
+        inputs = tf.concat([latent_repeat, queries], 1)
 
-    sdf = decoder(inputs)
+    sdf = decoder(inputs, training=False)
 
     return sdf
