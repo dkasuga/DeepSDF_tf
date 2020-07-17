@@ -152,7 +152,7 @@ def save_latent_vectors(experiment_directory, filename, latent_vec, epoch):
 
 
 # TODO:: duplicated in workspace
-def load_latent_vectors(experiment_directory, filename, lat_vecs):
+def load_latent_vectors(experiment_directory, filename, lat_vecs, num_embeddings, embedding_dim):
 
     full_filename = os.path.join(
         ws.get_latent_codes_dir(experiment_directory), filename
@@ -167,14 +167,14 @@ def load_latent_vectors(experiment_directory, filename, lat_vecs):
     if isinstance(data["latent_codes"], torch.Tensor):
 
         # for backwards compatibility
-        if not lat_vecs.num_embeddings == data["latent_codes"].size()[0]:
+        if not num_embeddings == data["latent_codes"].size()[0]:
             raise Exception(
                 "num latent codes mismatched: {} vs {}".format(
-                    lat_vecs.num_embeddings, data["latent_codes"].size()[0]
+                    num_embeddings, data["latent_codes"].size()[0]
                 )
             )
 
-        if not lat_vecs.embedding_dim == data["latent_codes"].size()[2]:
+        if not embedding_dim == data["latent_codes"].size()[2]:
             raise Exception("latent code dimensionality mismatch")
 
         for i, lat_vec in enumerate(data["latent_codes"]):
@@ -196,6 +196,7 @@ def save_logs(
     epoch,
 ):
 
+    # TODO:
     torch.save(
         {
             "epoch": epoch,
@@ -216,6 +217,7 @@ def load_logs(experiment_directory):
     if not os.path.isfile(full_filename):
         raise Exception('log file "{}" does not exist'.format(full_filename))
 
+    # TODO:
     data = torch.load(full_filename)
 
     return (
@@ -250,8 +252,10 @@ def get_spec_with_default(specs, key, default):
         return default
 
 
+# CHECK: .data.detach()
 def get_mean_latent_vector_magnitude(latent_vectors):
-    return torch.mean(torch.norm(latent_vectors.weight.data.detach(), dim=1))
+    # return torch.mean(torch.norm(latent_vectors.weight.data.detach(), dim=1))
+    return tf.reduce_mean(tf.norm(latent_vectors.weights, axis=1))
 
 
 def append_parameter_magnitudes(param_mag_log, model):
@@ -324,13 +328,12 @@ def main_function(experiment_directory, continue_from, batch_split):
         for i, param_group in enumerate(optimizer.param_groups):
             param_group["lr"] = lr_schedules[i].get_learning_rate(epoch)
 
-    # TODO:
     def empirical_stat(latent_vecs, indices):
-        lat_mat = torch.zeros(0).cuda()
+        lat_mat = tf.zeros(0)
         for ind in indices:
-            lat_mat = torch.cat([lat_mat, latent_vecs[ind]], 0)
-        mean = torch.mean(lat_mat, 0)
-        var = torch.var(lat_mat, 0)
+            lat_mat = tf.concat([lat_mat, latent_vecs[ind]], axis=0)
+        mean = tf.math.reduce_mean(lat_mat, axis=0)
+        var = tf.math.square(tf.math.reduce_std(lat_mat, axis=0))
         return mean, var
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -356,7 +359,7 @@ def main_function(experiment_directory, continue_from, batch_split):
 
     # if torch.cuda.device_count() > 1:
     # TODO:::
-    #decoder = torch.nn.DataParallel(decoder)
+    # decoder = torch.nn.DataParallel(decoder)
 
     num_epochs = specs["NumEpochs"]
     log_frequency = get_spec_with_default(specs, "LogFrequency", 10)
@@ -397,14 +400,15 @@ def main_function(experiment_directory, continue_from, batch_split):
 
     logging.debug(decoder)
 
-    lat_vecs = torch.nn.Embedding(num_scenes, latent_size, max_norm=code_bound)
-    torch.nn.init.normal_(
-        lat_vecs.weight.data,
-        0.0,
-        get_spec_with_default(specs, "CodeInitStdDev",
-                              1.0) / math.sqrt(latent_size),
-    )
+    num_embeddings = num_scenes
+    embedding_dim = latent_size
+    em_initializer = tf.keras.initializers.RandomNormal(0.0, get_spec_with_default(
+        specs, "CodeInitStdDev", 1.0) / math.sqrt(latent_size))
+    em_constraint = tf.keras.constraints.MaxNorm(code_bound)
+    lat_vecs = tf.keras.layers.Embedding(
+        num_embeddings, embedding_dim, embeddings_initializer=em_initializer, embeddings_constraint=em_constraint)
 
+    # TODO:
     logging.debug(
         "initialized with mean magnitude {}".format(
             get_mean_latent_vector_magnitude(lat_vecs)
@@ -428,6 +432,11 @@ def main_function(experiment_directory, continue_from, batch_split):
             },
         ]
     )
+    optimizer_decoder = tf.keras.optimizers.Adam(
+        learning_rate=lr_schedules[0].get_learning_rate(0))
+
+    optimizer_lat_vecs = tf.keras.optimizers.Adam(
+        learning_rate=lr_schedules[0].get_learning_rate(0))
 
     loss_log = []
     lr_log = []
@@ -442,7 +451,8 @@ def main_function(experiment_directory, continue_from, batch_split):
         logging.info('continuing from "{}"'.format(continue_from))
 
         lat_epoch = load_latent_vectors(
-            experiment_directory, continue_from + ".pth", lat_vecs
+            experiment_directory, continue_from +
+            ".pth", lat_vecs, num_embeddings, embedding_dim
         )
 
         model_epoch = ws.load_model_parameters(
@@ -476,15 +486,13 @@ def main_function(experiment_directory, continue_from, batch_split):
     logging.info("starting from epoch {}".format(start_epoch))
 
     logging.info(
-        "Number of decoder parameters: {}".format(
-            sum(p.data.nelement() for p in decoder.parameters())
-        )
+        "Number of decoder parameters: {}".format(decoder.count_params())
     )
     logging.info(
         "Number of shape code parameters: {} (# codes {}, code dim {})".format(
-            lat_vecs.num_embeddings * lat_vecs.embedding_dim,
-            lat_vecs.num_embeddings,
-            lat_vecs.embedding_dim,
+            num_embeddings * embedding_dim,
+            num_embeddings,
+            embedding_dim,
         )
     )
 
@@ -494,6 +502,7 @@ def main_function(experiment_directory, continue_from, batch_split):
 
         logging.info("epoch {}...".format(epoch))
 
+        # TODO:
         decoder.train()
 
         adjust_learning_rate(lr_schedules, optimizer_all, epoch)
@@ -501,56 +510,65 @@ def main_function(experiment_directory, continue_from, batch_split):
         for sdf_data, indices in sdf_loader:
 
             # Process the input data
-            sdf_data = sdf_data.reshape(-1, 4)
+            sdf_data = tf.reshape(sdf_data, shape=[-1, 4])
 
             num_sdf_samples = sdf_data.shape[0]
 
-            sdf_data.requires_grad = False
+            # sdf_data.requires_grad = False
+            # sdf_data = tf.stop_gradient(sdf_data)
 
             xyz = sdf_data[:, 0:3]
-            sdf_gt = sdf_data[:, 3].unsqueeze(1)
+            sdf_gt = tf.expand_dims(sdf_data[:, 3], axis=1)
 
             if enforce_minmax:
-                sdf_gt = torch.clamp(sdf_gt, minT, maxT)
+                sdf_gt = tf.clip_by_value(sdf_gt, minT, maxT)
 
-            xyz = torch.chunk(xyz, batch_split)
-            indices = torch.chunk(
-                indices.unsqueeze(-1).repeat(1, num_samp_per_scene).view(-1),
-                batch_split,
-            )
+            xyz = tf.split(xyz, batch_split)
+            indices = tf.split(tf.reshape(tf.tile(tf.expand_dims(
+                indices, axis=-1), multiples=[1, num_samp_per_scene]), shape=[-1]), batch_split)
 
-            sdf_gt = torch.chunk(sdf_gt, batch_split)
+            sdf_gt = tf.split(sdf_gt, batch_split)
 
             batch_loss = 0.0
+            grad_decoder = 0.0
+            grad_lat_vecs = 0.0
 
-            optimizer_all.zero_grad()
+            # TODO:
+            # optimizer_all.zero_grad()
 
             for i in range(batch_split):
+                with tf.GradientTape() as tape:
 
-                batch_vecs = lat_vecs(indices[i])
+                    batch_vecs = lat_vecs(indices[i])
 
-                input = torch.cat([batch_vecs, xyz[i]], dim=1)
+                    input = tf.concat([batch_vecs, xyz[i]], axis=1)
 
-                # NN optimization
-                pred_sdf = decoder(input)
+                    # NN optimization
+                    pred_sdf = decoder(input, training=True)
 
-                if enforce_minmax:
-                    pred_sdf = torch.clamp(pred_sdf, minT, maxT)
+                    if enforce_minmax:
+                        pred_sdf = tf.clip_by_value(pred_sdf, minT, maxT)
 
-                chunk_loss = loss_l1(
-                    pred_sdf, sdf_gt[i].cuda()) / num_sdf_samples
+                    chunk_loss = loss_l1(
+                        pred_sdf, sdf_gt[i]) / num_sdf_samples
 
-                if do_code_regularization:
-                    l2_size_loss = torch.sum(torch.norm(batch_vecs, dim=1))
-                    reg_loss = (
-                        code_reg_lambda * min(1, epoch / 100) * l2_size_loss
-                    ) / num_sdf_samples
+                    if do_code_regularization:
+                        l2_size_loss = tf.reduce_sum(
+                            tf.norm(batch_vecs, axis=1))
+                        reg_loss = (
+                            code_reg_lambda * min(1,
+                                                  epoch / 100) * l2_size_loss
+                        ) / num_sdf_samples
 
-                    chunk_loss = chunk_loss + reg_loss.cuda()
+                        chunk_loss = chunk_loss + reg_loss
 
-                chunk_loss.backward()
+                batch_loss += chunk_loss[0]
 
-                batch_loss += chunk_loss.item()
+                grad_decoder += tape.gradient(
+                    chunk_loss, decoder.trainable_variables)
+
+                grad_lat_vecs += tape.gradient(
+                    chunk_loss, lat_vecs.trainable_weights)
 
             logging.debug("loss = {}".format(batch_loss))
 
@@ -558,9 +576,12 @@ def main_function(experiment_directory, continue_from, batch_split):
 
             if grad_clip is not None:
 
-                torch.nn.utils.clip_grad_norm_(decoder.parameters(), grad_clip)
+                grad_decoder = tf.clip_by_norm(grad_decoder, grad_clip)
 
-            optimizer_all.step()
+            optimizer_decoder.apply_gradients(
+                zip(grad_decoder, decoder.trainable_variables))
+            optimizer_lat_vecs.apply_gradients(
+                zip(grad_lat_vecs, lat_vecs.trainable_weights))
 
         end = time.time()
 
