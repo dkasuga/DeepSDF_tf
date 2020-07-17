@@ -28,18 +28,22 @@ def code_to_mesh(experiment_directory, checkpoint, keep_normalized=False):
 
     decoder = arch.Decoder(latent_size, **specs["NetworkSpecs"])
 
+    # TODO:
     decoder = torch.nn.DataParallel(decoder)
 
+    # TODO:
     saved_model_state = torch.load(
-        os.path.join(experiment_directory, ws.model_params_subdir, checkpoint + ".pth")
+        os.path.join(experiment_directory,
+                     ws.model_params_subdir, checkpoint + ".pth")
     )
     saved_model_epoch = saved_model_state["epoch"]
 
+    # TODO:
     decoder.load_state_dict(saved_model_state["model_state_dict"])
 
-    decoder = decoder.module.cuda()
+    # decoder = decoder.module.cuda()
 
-    decoder.eval()
+    # decoder.eval()
 
     latent_vectors = ws.load_latent_vectors(experiment_directory, checkpoint)
 
@@ -50,13 +54,15 @@ def code_to_mesh(experiment_directory, checkpoint, keep_normalized=False):
 
     data_source = specs["DataSource"]
 
-    instance_filenames = deep_sdf.data.get_instance_filenames(data_source, train_split)
+    instance_filenames = deep_sdf.data.get_instance_filenames(
+        data_source, train_split)
 
     print(len(instance_filenames), " vs ", len(latent_vectors))
 
     for i, latent_vector in enumerate(latent_vectors):
 
-        dataset_name, class_name, instance_name = instance_filenames[i].split("/")
+        dataset_name, class_name, instance_name = instance_filenames[i].split(
+            "/")
         instance_name = instance_name.split(".")[0]
 
         print("{} {} {}".format(dataset_name, class_name, instance_name))
@@ -90,16 +96,15 @@ def code_to_mesh(experiment_directory, checkpoint, keep_normalized=False):
             offset = normalization_params["offset"]
             scale = normalization_params["scale"]
 
-        with torch.no_grad():
-            deep_sdf.mesh.create_mesh(
-                decoder,
-                latent_vector,
-                mesh_filename,
-                N=256,
-                max_batch=int(2 ** 18),
-                offset=offset,
-                scale=scale,
-            )
+        deep_sdf.mesh.create_mesh(
+            decoder,
+            latent_vector,
+            mesh_filename,
+            N=256,
+            max_batch=int(2 ** 18),
+            offset=offset,
+            scale=scale,
+        )
 
 
 if __name__ == "__main__":
@@ -136,4 +141,5 @@ if __name__ == "__main__":
 
     deep_sdf.configure_logging(args)
 
-    code_to_mesh(args.experiment_directory, args.checkpoint, args.keep_normalized)
+    code_to_mesh(args.experiment_directory,
+                 args.checkpoint, args.keep_normalized)
