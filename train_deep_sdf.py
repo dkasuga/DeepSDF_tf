@@ -367,19 +367,17 @@ def main_function(experiment_directory, continue_from, batch_split):
     with open(train_split_file, "r") as f:
         train_split = json.load(f)
 
-    # TODO:
     # make dataset class
-    sdf_dataset = deep_sdf.data.SDFSamples(
-        data_source, train_split, num_samp_per_scene, load_ram=False
+    sdf_samples = deep_sdf.data.SDFSamples(
+        data_source, train_split, num_samp_per_scene, batch_size=scene_per_batch, shuffle=True, epoch=num_epochs, load_ram=False
     )
+    sdf_dataset = sdf_samples.dataset()
 
     num_data_loader_threads = get_spec_with_default(
         specs, "DataLoaderThreads", 1)
     logging.debug("loading data with {} threads".format(
         num_data_loader_threads))
 
-    # TODO:
-    # make dataset class
     sdf_loader = data_utils.DataLoader(
         sdf_dataset,
         batch_size=scene_per_batch,
@@ -390,11 +388,10 @@ def main_function(experiment_directory, continue_from, batch_split):
 
     # TODO:
     # what about multi thread process?
-    logging.debug("torch num_threads: {}".format(torch.get_num_threads()))
+    # logging.debug("torch num_threads: {}".format(torch.get_num_threads()))
 
-    # TODO:
     # make dataset class
-    num_scenes = len(sdf_dataset)
+    num_scenes = len(sdf_samples.__len__())
 
     logging.info("There are {} scenes".format(num_scenes))
 
@@ -408,7 +405,6 @@ def main_function(experiment_directory, continue_from, batch_split):
     lat_vecs = tf.keras.layers.Embedding(
         num_embeddings, embedding_dim, embeddings_initializer=em_initializer, embeddings_constraint=em_constraint)
 
-    # TODO:
     logging.debug(
         "initialized with mean magnitude {}".format(
             get_mean_latent_vector_magnitude(lat_vecs)
@@ -419,19 +415,6 @@ def main_function(experiment_directory, continue_from, batch_split):
     def loss_l1(y_pred, y_true):
         return tf.math.reduce_sum((y_pred - y_true))
 
-    # TODO:
-    optimizer_all = torch.optim.Adam(
-        [
-            {
-                "params": decoder.parameters(),
-                "lr": lr_schedules[0].get_learning_rate(0),
-            },
-            {
-                "params": lat_vecs.parameters(),
-                "lr": lr_schedules[1].get_learning_rate(0),
-            },
-        ]
-    )
     optimizer_decoder = tf.keras.optimizers.Adam(
         learning_rate=lr_schedules[0].get_learning_rate(0))
 
@@ -501,9 +484,6 @@ def main_function(experiment_directory, continue_from, batch_split):
         start = time.time()
 
         logging.info("epoch {}...".format(epoch))
-
-        # TODO:
-        decoder.train()
 
         adjust_learning_rate(lr_schedules, optimizer_all, epoch)
 

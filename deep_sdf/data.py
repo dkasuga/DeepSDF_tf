@@ -150,6 +150,7 @@ class SDFSamples(object):
         subsample,
         batch_size=64,
         shuffle=True,
+        epoch=2001,
         load_ram=False,
         print_filename=False,
         num_files=1000000,
@@ -157,6 +158,7 @@ class SDFSamples(object):
         self.subsample = subsample
         self.batch_sizd = batch_size
         self.shuffle = shuffle
+        self.epoch = epoch
 
         self.data_source = data_source
         self.npyfiles = get_instance_filenames(data_source, split)
