@@ -41,8 +41,10 @@ def load_model_parameters(experiment_directory, checkpoint, decoder):
     )
 
     if not os.path.isfile(filename):
-        raise Exception('model state dict "{}" does not exist'.format(filename))
+        raise Exception(
+            'model state dict "{}" does not exist'.format(filename))
 
+    # TODO:
     data = torch.load(filename)
 
     decoder.load_state_dict(data["model_state_dict"])
@@ -58,7 +60,8 @@ def build_decoder(experiment_directory, experiment_specs):
 
     latent_size = experiment_specs["CodeLength"]
 
-    decoder = arch.Decoder(latent_size, **experiment_specs["NetworkSpecs"]).cuda()
+    decoder = arch.Decoder(
+        latent_size, **experiment_specs["NetworkSpecs"]).cuda()
 
     return decoder
 
@@ -69,6 +72,7 @@ def load_decoder(
 
     decoder = build_decoder(experiment_directory, experiment_specs)
 
+    # TODO:
     if data_parallel:
         decoder = torch.nn.DataParallel(decoder)
 
@@ -89,6 +93,7 @@ def load_latent_vectors(experiment_directory, checkpoint):
             + " for checkpoint '{}'".format(experiment_directory, checkpoint)
         )
 
+    # TODO:
     data = torch.load(filename)
 
     if isinstance(data["latent_codes"], torch.Tensor):
