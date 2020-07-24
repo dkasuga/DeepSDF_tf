@@ -6,10 +6,13 @@ import numpy as np
 import plyfile
 import skimage.measure
 import time
-import torch
 
 import tensorflow as tf
 import deep_sdf.utils
+
+# TODO:
+# numpy version
+# this is slower than torch.tensor(cpu)
 
 
 def create_mesh(
@@ -24,14 +27,14 @@ def create_mesh(
     voxel_origin = [-1, -1, -1]
     voxel_size = 2.0 / (N - 1)
 
-    overall_index = tf.range(0, N ** 3, 1, dtype=tf.int64)
-    samples = tf.zeros([N ** 3, 4])
+    overall_index = np.arange(0, N ** 3, 1, dtype=np.int64)
+    samples = np.zeros([N ** 3, 4])
 
     # transform first 3 columns
     # to be the x, y, z index
     samples[:, 2] = overall_index % N
-    samples[:, 1] = (overall_index.long() / N) % N
-    samples[:, 0] = ((overall_index.long() / N) / N) % N
+    samples[:, 1] = (overall_index / N) % N
+    samples[:, 0] = ((overall_index / N) / N) % N
 
     # transform first 3 columns
     # to be the x, y, z coordinate
@@ -41,30 +44,29 @@ def create_mesh(
 
     num_samples = N ** 3
 
-    samples.requires_grad = False
+    # CHECK
+    # samples.requires_grad = False
 
     head = 0
 
     while head < num_samples:
-        sample_subset = samples[head: min(
-            head + max_batch, num_samples), 0:3].cuda()
+        sample_subset = tf.convert_to_tensor(samples[head: min(
+            head + max_batch, num_samples), 0:3])
 
         samples[head: min(head + max_batch, num_samples), 3] = (
-            deep_sdf.utils.decode_sdf(decoder, latent_vec, sample_subset)
-            .squeeze(1)
-            .detach()
-            .cpu()
-        )
+            tf.squeeze(
+                deep_sdf.utils.decode_sdf(decoder, latent_vec, sample_subset), axis=1)
+        ).numpy()
         head += max_batch
 
     sdf_values = samples[:, 3]
-    sdf_values = sdf_values.reshape(N, N, N)
+    sdf_values = np.reshape(sdf_values, shape=[N, N, N])
 
     end = time.time()
     print("sampling takes: %f" % (end - start))
 
     convert_sdf_samples_to_ply(
-        sdf_values.data.cpu(),
+        sdf_values,
         voxel_origin,
         voxel_size,
         ply_filename + ".ply",
@@ -74,7 +76,7 @@ def create_mesh(
 
 
 def convert_sdf_samples_to_ply(
-    pytorch_3d_sdf_tensor,
+    numpy_3d_sdf_tensor,
     voxel_grid_origin,
     voxel_size,
     ply_filename_out,
@@ -84,7 +86,7 @@ def convert_sdf_samples_to_ply(
     """
     Convert sdf samples to .ply
 
-    :param pytorch_3d_sdf_tensor: a torch.FloatTensor of shape (n,n,n)
+    :param np_3d_sdf_tensor: a np.ndarray(float) of shape (n,n,n)
     :voxel_grid_origin: a list of three floats: the bottom, left, down origin of the voxel grid
     :voxel_size: float, the size of the voxels
     :ply_filename_out: string, path of the filename to save to
@@ -92,8 +94,6 @@ def convert_sdf_samples_to_ply(
     This function adapted from: https://github.com/RobotLocomotion/spartan
     """
     start_time = time.time()
-
-    numpy_3d_sdf_tensor = pytorch_3d_sdf_tensor.numpy()
 
     verts, faces, normals, values = skimage.measure.marching_cubes_lewiner(
         numpy_3d_sdf_tensor, level=0.0, spacing=[voxel_size] * 3
