@@ -214,8 +214,8 @@ class SDFSamples(object):
 
     def dataset(self):
         dataset = tf.data.Dataset.from_generator(
-            self.generator, output_types=)
-        self.shuffle:
+            self.generator, output_types=tf.float64)
+        if self.shuffle:
             dataset.apply(tf.data.experimental.shuffle_and_repeat(
                 self.batch_size * 3, self.epoch))
         dataset = dataset.batch(batch_size=self.batch_size)
