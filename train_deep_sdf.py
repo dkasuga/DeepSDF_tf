@@ -97,29 +97,22 @@ def get_learning_rate_schedules(specs):
 def save_model(experiment_directory, filename, decoder, epoch):
 
     model_params_dir = ws.get_model_params_dir(experiment_directory, True)
-
-    # TODO:
-    torch.save(
-        {"epoch": epoch, "model_state_dict": decoder.state_dict()},
-        os.path.join(model_params_dir, filename),
-    )
+    ckpt = tf.train.Checkpoint(decoder=decoder, epoch=epoch)
+    ckpt.save(os.path.join(model_params_dir, filename))
 
 # need to rewrite
 
 
-def save_optimizer(experiment_directory, filename, optimizer, epoch):
+def save_optimizer(experiment_directory, filename, optimizer_decoder, optimizer_lat_vecs, epoch):
 
     optimizer_params_dir = ws.get_optimizer_params_dir(
         experiment_directory, True)
-
-    # TODO:
-    torch.save(
-        {"epoch": epoch, "optimizer_state_dict": optimizer.state_dict()},
-        os.path.join(optimizer_params_dir, filename),
-    )
+    ckpt = tf.train.Checkpoint(
+        optimizer_decoder=optimizer_decoder, optimizer_lat_vecs=optimizer_lat_vecs)
+    ckpt.save(os.path.join(optimizer_params_dir, filename))
 
 
-def load_optimizer(experiment_directory, filename, optimizer):
+def load_optimizer(experiment_directory, filename, optimizer_decoder, optimizer_lat_vecs):
 
     full_filename = os.path.join(
         ws.get_optimizer_params_dir(experiment_directory), filename
@@ -127,28 +120,25 @@ def load_optimizer(experiment_directory, filename, optimizer):
 
     if not os.path.isfile(full_filename):
         raise Exception(
-            'optimizer state dict "{}" does not exist'.format(full_filename)
+            'optimizer ckpt "{}" does not exist'.format(full_filename)
         )
 
-    data = torch.load(full_filename)
+    ckpt = tf.train.Checkpoint(
+        optimizer_decoder=optimizer_decoder, optimizer_lat_vecs=optimizer_lat_vecs, epoch=tf.Variable(0, dtype=tf.int64))
 
-    optimizer.load_state_dict(data["optimizer_state_dict"])
+    ckpt.restore(full_filename)
+    epoch = ckpt.epoch
 
-    return data["epoch"]
-
+    return epoch
 
 # need to rewrite
+
+
 def save_latent_vectors(experiment_directory, filename, latent_vec, epoch):
 
     latent_codes_dir = ws.get_latent_codes_dir(experiment_directory, True)
-
-    all_latents = latent_vec.state_dict()
-
-    # TODO:
-    torch.save(
-        {"epoch": epoch, "latent_codes": all_latents},
-        os.path.join(latent_codes_dir, filename),
-    )
+    ckpt = tf.train.Checkpoint(latent_vec=latent_vec, epoch=epoch)
+    ckpt.save(os.path.join(latent_codes_dir, filename))
 
 
 # TODO:: duplicated in workspace
@@ -162,28 +152,12 @@ def load_latent_vectors(experiment_directory, filename, lat_vecs, num_embeddings
         raise Exception(
             'latent state file "{}" does not exist'.format(full_filename))
 
-    data = torch.load(full_filename)
+    ckpt = tf.train.Checkpoint(
+        latent_vec=lat_vecs, epoch=tf.Variable(0, dtype=tf.int64))
+    ckpt.restore(full_filename)
+    epoch = ckpt.epoch
 
-    if isinstance(data["latent_codes"], torch.Tensor):
-
-        # for backwards compatibility
-        if not num_embeddings == data["latent_codes"].size()[0]:
-            raise Exception(
-                "num latent codes mismatched: {} vs {}".format(
-                    num_embeddings, data["latent_codes"].size()[0]
-                )
-            )
-
-        if not embedding_dim == data["latent_codes"].size()[2]:
-            raise Exception("latent code dimensionality mismatch")
-
-        for i, lat_vec in enumerate(data["latent_codes"]):
-            lat_vecs.weight.data[i, :] = lat_vec
-
-    else:
-        lat_vecs.load_state_dict(data["latent_codes"])
-
-    return data["epoch"]
+    return epoch
 
 
 def save_logs(
@@ -306,7 +280,7 @@ def main_function(experiment_directory, continue_from, batch_split):
 
         save_model(experiment_directory, "latest.ckpt", decoder, epoch)
         save_optimizer(experiment_directory,
-                       "latest.ckpt", optimizer_all, epoch)
+                       "latest.ckpt", optimizer_decoder, optimizer_lat_vecs, epoch)
         save_latent_vectors(experiment_directory,
                             "latest.ckpt", lat_vecs, epoch)
 
@@ -314,7 +288,7 @@ def main_function(experiment_directory, continue_from, batch_split):
 
         save_model(experiment_directory, str(epoch) + ".ckpt", decoder, epoch)
         save_optimizer(experiment_directory, str(
-            epoch) + ".ckpt", optimizer_all, epoch)
+            epoch) + ".ckpt", optimizer_decoder, optimizer_lat_vecs, epoch)
         save_latent_vectors(experiment_directory, str(
             epoch) + ".ckpt", lat_vecs, epoch)
 
@@ -323,10 +297,11 @@ def main_function(experiment_directory, continue_from, batch_split):
         sys.exit(0)
 
     # TODO: optimizer.param_groups
-    def adjust_learning_rate(lr_schedules, optimizer, epoch):
-
-        for i, param_group in enumerate(optimizer.param_groups):
-            param_group["lr"] = lr_schedules[i].get_learning_rate(epoch)
+    def adjust_learning_rate(lr_schedules, optimizer_decoder, optimizer_lat_vecs, epoch):
+        optimizer_decoder.learning_rate = lr_schedules[0].get_learning_rate(
+            epoch)
+        optimizer_lat_vecs.learning_rate = lr_schedules[1].get_learning_rate(
+            epoch)
 
     def empirical_stat(latent_vecs, indices):
         lat_mat = tf.zeros(0)
@@ -419,7 +394,7 @@ def main_function(experiment_directory, continue_from, batch_split):
         learning_rate=lr_schedules[0].get_learning_rate(0))
 
     optimizer_lat_vecs = tf.keras.optimizers.Adam(
-        learning_rate=lr_schedules[0].get_learning_rate(0))
+        learning_rate=lr_schedules[1].get_learning_rate(0))
 
     loss_log = []
     lr_log = []
@@ -435,7 +410,7 @@ def main_function(experiment_directory, continue_from, batch_split):
 
         lat_epoch = load_latent_vectors(
             experiment_directory, continue_from +
-            ".pth", lat_vecs, num_embeddings, embedding_dim
+            ".ckpt", lat_vecs, num_embeddings, embedding_dim
         )
 
         model_epoch = ws.load_model_parameters(
@@ -443,7 +418,8 @@ def main_function(experiment_directory, continue_from, batch_split):
         )
 
         optimizer_epoch = load_optimizer(
-            experiment_directory, continue_from + ".pth", optimizer_all
+            experiment_directory, continue_from +
+            ".ckpt", optimizer_decoder, optimizer_lat_vecs
         )
 
         loss_log, lr_log, timing_log, lat_mag_log, param_mag_log, log_epoch = load_logs(
@@ -485,7 +461,8 @@ def main_function(experiment_directory, continue_from, batch_split):
 
         logging.info("epoch {}...".format(epoch))
 
-        adjust_learning_rate(lr_schedules, optimizer_all, epoch)
+        adjust_learning_rate(lr_schedules, optimizer_decoder,
+                             optimizer_lat_vecs, epoch)
 
         for sdf_data, indices in sdf_loader:
 

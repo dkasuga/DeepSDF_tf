@@ -8,7 +8,7 @@ import torch
 model_params_subdir = "ModelParameters"
 optimizer_params_subdir = "OptimizerParameters"
 latent_codes_subdir = "LatentCodes"
-logs_filename = "Logs.pth"
+logs_filename = "Logs.ckpt"
 reconstructions_subdir = "Reconstructions"
 reconstruction_meshes_subdir = "Meshes"
 reconstruction_codes_subdir = "Codes"
@@ -37,7 +37,7 @@ def load_experiment_specifications(experiment_directory):
 def load_model_parameters(experiment_directory, checkpoint, decoder):
 
     filename = os.path.join(
-        experiment_directory, model_params_subdir, checkpoint + ".pth"
+        experiment_directory, model_params_subdir, checkpoint + ".ckpt"
     )
 
     if not os.path.isfile(filename):
@@ -81,42 +81,6 @@ def load_decoder(
     return (decoder, epoch)
 
 
-def load_latent_vectors(experiment_directory, checkpoint):
-
-    filename = os.path.join(
-        experiment_directory, latent_codes_subdir, checkpoint + ".pth"
-    )
-
-    if not os.path.isfile(filename):
-        raise Exception(
-            "The experiment directory ({}) does not include a latent code file"
-            + " for checkpoint '{}'".format(experiment_directory, checkpoint)
-        )
-
-    # TODO:
-    data = torch.load(filename)
-
-    if isinstance(data["latent_codes"], torch.Tensor):
-
-        num_vecs = data["latent_codes"].size()[0]
-
-        lat_vecs = []
-        for i in range(num_vecs):
-            lat_vecs.append(data["latent_codes"][i].cuda())
-
-        return lat_vecs
-
-    else:
-
-        num_embeddings, embedding_dim = data["latent_codes"]["weight"].shape
-
-        lat_vecs = torch.nn.Embedding(num_embeddings, embedding_dim)
-
-        lat_vecs.load_state_dict(data["latent_codes"])
-
-        return lat_vecs.weight.data.detach()
-
-
 def get_data_source_map_filename(data_dir):
     return os.path.join(data_dir, data_source_map_filename)
 
@@ -147,7 +111,7 @@ def get_reconstructed_code_filename(
         reconstruction_codes_subdir,
         dataset,
         class_name,
-        instance_name + ".pth",
+        instance_name + ".ckpt",
     )
 
 

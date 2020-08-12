@@ -173,12 +173,9 @@ if __name__ == "__main__":
     decoder = arch.Decoder(latent_size, **specs["NetworkSpecs"])
 
     # TODO:
-    decoder = torch.nn.DataParallel(decoder)
-
-    # TODO:
     saved_model_state = torch.load(
         os.path.join(
-            args.experiment_directory, ws.model_params_subdir, args.checkpoint + ".pth"
+            args.experiment_directory, ws.model_params_subdir, args.checkpoint + ".ckpt"
         )
     )
     saved_model_epoch = saved_model_state["epoch"]
@@ -243,13 +240,13 @@ if __name__ == "__main__":
                 )
                 latent_filename = os.path.join(
                     reconstruction_codes_dir, npz[:-4] +
-                    "-" + str(k + rerun) + ".pth"
+                    "-" + str(k + rerun) + ".ckpt"
                 )
             else:
                 mesh_filename = os.path.join(
                     reconstruction_meshes_dir, npz[:-4])
                 latent_filename = os.path.join(
-                    reconstruction_codes_dir, npz[:-4] + ".pth"
+                    reconstruction_codes_dir, npz[:-4] + ".ckpt"
                 )
 
             if (
