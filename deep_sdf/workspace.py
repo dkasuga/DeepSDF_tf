@@ -3,7 +3,7 @@
 
 import json
 import os
-import torch
+import tensorflow as tf
 
 model_params_subdir = "ModelParameters"
 optimizer_params_subdir = "OptimizerParameters"
@@ -23,145 +23,140 @@ training_meshes_subdir = "TrainingMeshes"
 
 def load_experiment_specifications(experiment_directory):
 
-    filename = os.path.join(experiment_directory, specifications_filename)
+  filename = os.path.join(experiment_directory, specifications_filename)
 
-    if not os.path.isfile(filename):
-        raise Exception(
-            "The experiment directory ({}) does not include specifications file "
-            + '"specs.json"'.format(experiment_directory)
-        )
+  if not os.path.isfile(filename):
+    raise Exception(
+        "The experiment directory ({}) does not include specifications file "
+        + '"specs.json"'.format(experiment_directory)
+    )
 
-    return json.load(open(filename))
+  return json.load(open(filename))
 
 
 def load_model_parameters(experiment_directory, checkpoint, decoder):
 
-    filename = os.path.join(
-        experiment_directory, model_params_subdir, checkpoint + ".ckpt"
-    )
+  filename = os.path.join(
+      experiment_directory, model_params_subdir, checkpoint + ".ckpt"
+  )
 
-    if not os.path.isfile(filename):
-        raise Exception(
-            'model state dict "{}" does not exist'.format(filename))
+  if not os.path.isfile(filename):
+    raise Exception(
+        'model state dict "{}" does not exist'.format(filename))
 
-    # TODO:
-    data = torch.load(filename)
+  ckpt = tf.train.Checkpoint(
+      decoder=decoder, epoch=tf.Variable(0, dtype=tf.int64))
+  ckpt.restore(filename)
+  epoch = ckpt.epoch
 
-    decoder.load_state_dict(data["model_state_dict"])
-
-    return data["epoch"]
+  return epoch
 
 
 def build_decoder(experiment_directory, experiment_specs):
 
-    arch = __import__(
-        "networks." + experiment_specs["NetworkArch"], fromlist=["Decoder"]
-    )
+  arch = __import__(
+      "networks." + experiment_specs["NetworkArch"], fromlist=["Decoder"]
+  )
 
-    latent_size = experiment_specs["CodeLength"]
+  latent_size = experiment_specs["CodeLength"]
 
-    decoder = arch.Decoder(
-        latent_size, **experiment_specs["NetworkSpecs"]).cuda()
+  decoder = arch.Decoder(
+      latent_size, **experiment_specs["NetworkSpecs"])
 
-    return decoder
+  return decoder
 
 
 def load_decoder(
     experiment_directory, experiment_specs, checkpoint, data_parallel=True
 ):
 
-    decoder = build_decoder(experiment_directory, experiment_specs)
+  decoder = build_decoder(experiment_directory, experiment_specs)
+  epoch = load_model_parameters(experiment_directory, checkpoint, decoder)
 
-    # TODO:
-    if data_parallel:
-        decoder = torch.nn.DataParallel(decoder)
-
-    epoch = load_model_parameters(experiment_directory, checkpoint, decoder)
-
-    return (decoder, epoch)
+  return (decoder, epoch)
 
 
 def get_data_source_map_filename(data_dir):
-    return os.path.join(data_dir, data_source_map_filename)
+  return os.path.join(data_dir, data_source_map_filename)
 
 
 def get_reconstructed_mesh_filename(
     experiment_dir, epoch, dataset, class_name, instance_name
 ):
 
-    return os.path.join(
-        experiment_dir,
-        reconstructions_subdir,
-        str(epoch),
-        reconstruction_meshes_subdir,
-        dataset,
-        class_name,
-        instance_name + ".ply",
-    )
+  return os.path.join(
+      experiment_dir,
+      reconstructions_subdir,
+      str(epoch),
+      reconstruction_meshes_subdir,
+      dataset,
+      class_name,
+      instance_name + ".ply",
+  )
 
 
 def get_reconstructed_code_filename(
     experiment_dir, epoch, dataset, class_name, instance_name
 ):
 
-    return os.path.join(
-        experiment_dir,
-        reconstructions_subdir,
-        str(epoch),
-        reconstruction_codes_subdir,
-        dataset,
-        class_name,
-        instance_name + ".ckpt",
-    )
+  return os.path.join(
+      experiment_dir,
+      reconstructions_subdir,
+      str(epoch),
+      reconstruction_codes_subdir,
+      dataset,
+      class_name,
+      instance_name + ".ckpt",
+  )
 
 
 def get_evaluation_dir(experiment_dir, checkpoint, create_if_nonexistent=False):
 
-    dir = os.path.join(experiment_dir, evaluation_subdir, checkpoint)
+  dir = os.path.join(experiment_dir, evaluation_subdir, checkpoint)
 
-    if create_if_nonexistent and not os.path.isdir(dir):
-        os.makedirs(dir)
+  if create_if_nonexistent and not os.path.isdir(dir):
+    os.makedirs(dir)
 
-    return dir
+  return dir
 
 
 def get_model_params_dir(experiment_dir, create_if_nonexistent=False):
 
-    dir = os.path.join(experiment_dir, model_params_subdir)
+  dir = os.path.join(experiment_dir, model_params_subdir)
 
-    if create_if_nonexistent and not os.path.isdir(dir):
-        os.makedirs(dir)
+  if create_if_nonexistent and not os.path.isdir(dir):
+    os.makedirs(dir)
 
-    return dir
+  return dir
 
 
 def get_optimizer_params_dir(experiment_dir, create_if_nonexistent=False):
 
-    dir = os.path.join(experiment_dir, optimizer_params_subdir)
+  dir = os.path.join(experiment_dir, optimizer_params_subdir)
 
-    if create_if_nonexistent and not os.path.isdir(dir):
-        os.makedirs(dir)
+  if create_if_nonexistent and not os.path.isdir(dir):
+    os.makedirs(dir)
 
-    return dir
+  return dir
 
 
 def get_latent_codes_dir(experiment_dir, create_if_nonexistent=False):
 
-    dir = os.path.join(experiment_dir, latent_codes_subdir)
+  dir = os.path.join(experiment_dir, latent_codes_subdir)
 
-    if create_if_nonexistent and not os.path.isdir(dir):
-        os.makedirs(dir)
+  if create_if_nonexistent and not os.path.isdir(dir):
+    os.makedirs(dir)
 
-    return dir
+  return dir
 
 
 def get_normalization_params_filename(
     data_dir, dataset_name, class_name, instance_name
 ):
-    return os.path.join(
-        data_dir,
-        normalization_param_subdir,
-        dataset_name,
-        class_name,
-        instance_name + ".npz",
-    )
+  return os.path.join(
+      data_dir,
+      normalization_param_subdir,
+      dataset_name,
+      class_name,
+      instance_name + ".npz",
+  )
