@@ -191,7 +191,7 @@ def load_logs(experiment_directory):
     raise Exception('log file "{}" does not exist'.format(full_filename))
 
   with open(full_filename, 'rb') as f:
-    data = pickle.load(full_filename)
+    data = pickle.load(f)
 
   return (
       data["loss"],
@@ -331,10 +331,6 @@ def main_function(experiment_directory, continue_from, batch_split):
   logging.info("training with {} GPU(s)".format(
       len(tf.config.experimental.list_physical_devices('GPU'))))
 
-  # if torch.cuda.device_count() > 1:
-  # TODO:::
-  # decoder = torch.nn.DataParallel(decoder)
-
   num_epochs = specs["NumEpochs"]
   log_frequency = get_spec_with_default(specs, "LogFrequency", 10)
 
@@ -359,10 +355,6 @@ def main_function(experiment_directory, continue_from, batch_split):
       num_workers=num_data_loader_threads,
       drop_last=True,
   )
-
-  # TODO:
-  # what about multi thread process?
-  # logging.debug("torch num_threads: {}".format(torch.get_num_threads()))
 
   # make dataset class
   num_scenes = len(sdf_samples.__len__())
@@ -488,9 +480,6 @@ def main_function(experiment_directory, continue_from, batch_split):
       batch_loss = 0.0
       grad_decoder = 0.0
       grad_lat_vecs = 0.0
-
-      # TODO:
-      # optimizer_all.zero_grad()
 
       for i in range(batch_split):
         with tf.GradientTape() as tape:
