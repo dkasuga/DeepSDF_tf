@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 # Copyright 2004-present Facebook. All Rights Reserved.
 
-import torch
-import torch.utils.data as data_utils
-
 import tensorflow as tf
 
 import signal
@@ -227,7 +224,6 @@ def get_spec_with_default(specs, key, default):
 
 # CHECK: .data.detach()
 def get_mean_latent_vector_magnitude(latent_vectors):
-  # return torch.mean(torch.norm(latent_vectors.weight.data.detach(), dim=1))
   return tf.reduce_mean(tf.norm(latent_vectors.weights, axis=1))
 
 
@@ -347,14 +343,6 @@ def main_function(experiment_directory, continue_from, batch_split):
       specs, "DataLoaderThreads", 1)
   logging.debug("loading data with {} threads".format(
       num_data_loader_threads))
-
-  sdf_loader = data_utils.DataLoader(
-      sdf_dataset,
-      batch_size=scene_per_batch,
-      shuffle=True,
-      num_workers=num_data_loader_threads,
-      drop_last=True,
-  )
 
   # make dataset class
   num_scenes = len(sdf_samples.__len__())
