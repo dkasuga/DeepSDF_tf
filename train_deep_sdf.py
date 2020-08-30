@@ -1,7 +1,18 @@
-#!/usr/bin/env python3
-# Copyright 2004-present Facebook. All Rights Reserved.
+# Copyright 2020 The TensorFlow Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+""" NO COMMENT NOW"""
 
-import tensorflow as tf
 
 import signal
 import sys
@@ -11,6 +22,8 @@ import math
 import json
 import time
 import pickle
+
+import tensorflow as tf
 
 import deep_sdf
 import deep_sdf.workspace as ws
@@ -52,7 +65,6 @@ class WarmupLearningRateSchedule(LearningRateSchedule):
     return self.initial + (self.warmed_up - self.initial) * epoch / self.length
 
 
-# no rewrite
 def get_learning_rate_schedules(specs):
 
   schedule_specs = specs["LearningRateSchedule"]
@@ -101,16 +113,20 @@ def save_model(experiment_directory, filename, decoder, epoch):
 # need to rewrite
 
 
-def save_optimizer(experiment_directory, filename, optimizer_decoder, optimizer_lat_vecs, epoch):
+def save_optimizer(experiment_directory, filename,
+                   optimizer_decoder, optimizer_lat_vecs, epoch):
 
   optimizer_params_dir = ws.get_optimizer_params_dir(
       experiment_directory, True)
   ckpt = tf.train.Checkpoint(
-      optimizer_decoder=optimizer_decoder, optimizer_lat_vecs=optimizer_lat_vecs)
+      optimizer_decoder=optimizer_decoder,
+      optimizer_lat_vecs=optimizer_lat_vecs,
+      epoch=epoch)
   ckpt.save(os.path.join(optimizer_params_dir, filename))
 
 
-def load_optimizer(experiment_directory, filename, optimizer_decoder, optimizer_lat_vecs):
+def load_optimizer(experiment_directory, filename,
+                   optimizer_decoder, optimizer_lat_vecs):
 
   full_filename = os.path.join(
       ws.get_optimizer_params_dir(experiment_directory), filename
@@ -122,7 +138,9 @@ def load_optimizer(experiment_directory, filename, optimizer_decoder, optimizer_
     )
 
   ckpt = tf.train.Checkpoint(
-      optimizer_decoder=optimizer_decoder, optimizer_lat_vecs=optimizer_lat_vecs, epoch=tf.Variable(0, dtype=tf.int64))
+      optimizer_decoder=optimizer_decoder,
+      optimizer_lat_vecs=optimizer_lat_vecs,
+      epoch=tf.Variable(0, dtype=tf.int64))
 
   ckpt.restore(full_filename)
   epoch = ckpt.epoch
@@ -140,7 +158,7 @@ def save_latent_vectors(experiment_directory, filename, latent_vec, epoch):
 
 
 # TODO:: duplicated in workspace
-def load_latent_vectors(experiment_directory, filename, lat_vecs, num_embeddings, embedding_dim):
+def load_latent_vectors(experiment_directory, filename, lat_vecs):
 
   full_filename = os.path.join(
       ws.get_latent_codes_dir(experiment_directory), filename
@@ -214,7 +232,6 @@ def clip_logs(loss_log, lr_log, timing_log, lat_mag_log, param_mag_log, epoch):
   return (loss_log, lr_log, timing_log, lat_mag_log, param_mag_log)
 
 
-# no rewrite
 def get_spec_with_default(specs, key, default):
   try:
     return specs[key]
@@ -222,7 +239,6 @@ def get_spec_with_default(specs, key, default):
     return default
 
 
-# CHECK: .data.detach()
 def get_mean_latent_vector_magnitude(latent_vectors):
   return tf.reduce_mean(tf.norm(latent_vectors.weights, axis=1))
 
@@ -238,11 +254,11 @@ def append_parameter_magnitudes(param_mag_log, model):
 
 def main_function(experiment_directory, continue_from, batch_split):
 
-  logging.debug("running " + experiment_directory)
+  logging.debug("running %s", experiment_directory)
 
   specs = ws.load_experiment_specifications(experiment_directory)
 
-  logging.info("Experiment description: \n" + specs["Description"])
+  logging.info("Experiment description: \n%s", specs["Description"])
 
   data_source = specs["DataSource"]
   train_split_file = specs["TrainSplit"]
@@ -269,7 +285,7 @@ def main_function(experiment_directory, continue_from, batch_split):
 
   grad_clip = get_spec_with_default(specs, "GradientClipNorm", None)
   if grad_clip is not None:
-    logging.debug("clipping gradients to max norm {}".format(grad_clip))
+    logging.debug("clipping gradients to max norm %f", grad_clip)
 
   def save_latest(epoch):
 
@@ -292,27 +308,20 @@ def main_function(experiment_directory, continue_from, batch_split):
     sys.exit(0)
 
   # TODO: optimizer.param_groups
-  def adjust_learning_rate(lr_schedules, optimizer_decoder, optimizer_lat_vecs, epoch):
+  def adjust_learning_rate(lr_schedules, optimizer_decoder,
+                           optimizer_lat_vecs, epoch):
     optimizer_decoder.learning_rate = lr_schedules[0].get_learning_rate(
         epoch)
     optimizer_lat_vecs.learning_rate = lr_schedules[1].get_learning_rate(
         epoch)
-
-  def empirical_stat(latent_vecs, indices):
-    lat_mat = tf.zeros(0)
-    for ind in indices:
-      lat_mat = tf.concat([lat_mat, latent_vecs[ind]], axis=0)
-    mean = tf.math.reduce_mean(lat_mat, axis=0)
-    var = tf.math.square(tf.math.reduce_std(lat_mat, axis=0))
-    return mean, var
 
   signal.signal(signal.SIGINT, signal_handler)
 
   num_samp_per_scene = specs["SamplesPerScene"]
   scene_per_batch = specs["ScenesPerBatch"]
   clamp_dist = specs["ClampingDistance"]
-  minT = -clamp_dist
-  maxT = clamp_dist
+  min_t = -clamp_dist
+  max_t = clamp_dist
   enforce_minmax = True
 
   do_code_regularization = get_spec_with_default(
@@ -324,8 +333,8 @@ def main_function(experiment_directory, continue_from, batch_split):
 
   decoder = arch.Decoder(latent_size, **specs["NetworkSpecs"])
 
-  logging.info("training with {} GPU(s)".format(
-      len(tf.config.experimental.list_physical_devices('GPU'))))
+  logging.info("training with %d GPU(s)",
+               len(tf.config.experimental.list_physical_devices('GPU')))
 
   num_epochs = specs["NumEpochs"]
   log_frequency = get_spec_with_default(specs, "LogFrequency", 10)
@@ -335,34 +344,39 @@ def main_function(experiment_directory, continue_from, batch_split):
 
   # make dataset class
   sdf_samples = deep_sdf.data.SDFSamples(
-      data_source, train_split, num_samp_per_scene, batch_size=scene_per_batch, shuffle=True, epoch=num_epochs, load_ram=False
+      data_source, train_split, num_samp_per_scene,
+      batch_size=scene_per_batch, shuffle=True,
+      epoch=num_epochs, load_ram=False
   )
   sdf_dataset = sdf_samples.dataset()
 
   num_data_loader_threads = get_spec_with_default(
       specs, "DataLoaderThreads", 1)
-  logging.debug("loading data with {} threads".format(
-      num_data_loader_threads))
+  logging.debug("loading data with %d threads",
+                num_data_loader_threads)
 
   # make dataset class
   num_scenes = len(sdf_samples.__len__())
 
-  logging.info("There are {} scenes".format(num_scenes))
+  logging.info("There are %d scenes", num_scenes)
 
   logging.debug(decoder)
 
   num_embeddings = num_scenes
   embedding_dim = latent_size
-  em_initializer = tf.keras.initializers.RandomNormal(0.0, get_spec_with_default(
-      specs, "CodeInitStdDev", 1.0) / math.sqrt(latent_size))
+  em_initializer = tf.keras.initializers.RandomNormal(
+      0.0,
+      get_spec_with_default(
+          specs, "CodeInitStdDev", 1.0) / math.sqrt(latent_size))
   em_constraint = tf.keras.constraints.MaxNorm(code_bound)
   lat_vecs = tf.keras.layers.Embedding(
-      num_embeddings, embedding_dim, embeddings_initializer=em_initializer, embeddings_constraint=em_constraint)
+      num_embeddings, embedding_dim,
+      embeddings_initializer=em_initializer,
+      embeddings_constraint=em_constraint)
 
   logging.debug(
-      "initialized with mean magnitude {}".format(
-          get_mean_latent_vector_magnitude(lat_vecs)
-      )
+      "initialized with mean magnitude %f",
+      get_mean_latent_vector_magnitude(lat_vecs)
   )
 
   # CHECK:
@@ -385,11 +399,11 @@ def main_function(experiment_directory, continue_from, batch_split):
 
   if continue_from is not None:
 
-    logging.info('continuing from "{}"'.format(continue_from))
+    logging.info('continuing from "%s"', continue_from)
 
     lat_epoch = load_latent_vectors(
         experiment_directory, continue_from +
-        ".ckpt", lat_vecs, num_embeddings, embedding_dim
+        ".ckpt", lat_vecs
     )
 
     model_epoch = ws.load_model_parameters(
@@ -401,9 +415,9 @@ def main_function(experiment_directory, continue_from, batch_split):
         ".ckpt", optimizer_decoder, optimizer_lat_vecs
     )
 
-    loss_log, lr_log, timing_log, lat_mag_log, param_mag_log, log_epoch = load_logs(
-        experiment_directory
-    )
+    loss_log, lr_log, timing_log, lat_mag_log, \
+        param_mag_log, log_epoch = load_logs(
+            experiment_directory)
 
     if not log_epoch == model_epoch:
       loss_log, lr_log, timing_log, lat_mag_log, param_mag_log = clip_logs(
@@ -421,29 +435,28 @@ def main_function(experiment_directory, continue_from, batch_split):
 
     logging.debug("loaded")
 
-  logging.info("starting from epoch {}".format(start_epoch))
+  logging.info("starting from epoch %d", start_epoch)
 
   logging.info(
-      "Number of decoder parameters: {}".format(decoder.count_params())
-  )
+      "Number of decoder parameters: %d", decoder.count_params())
+
   logging.info(
-      "Number of shape code parameters: {} (# codes {}, code dim {})".format(
-          num_embeddings * embedding_dim,
-          num_embeddings,
-          embedding_dim,
-      )
+      "Number of shape code parameters: %d (# codes %d, code dim %d)",
+      num_embeddings * embedding_dim,
+      num_embeddings,
+      embedding_dim,
   )
 
   for epoch in range(start_epoch, num_epochs + 1):
 
     start = time.time()
 
-    logging.info("epoch {}...".format(epoch))
+    logging.info("epoch %d...", epoch)
 
     adjust_learning_rate(lr_schedules, optimizer_decoder,
                          optimizer_lat_vecs, epoch)
 
-    for sdf_data, indices in sdf_loader:
+    for sdf_data, indices in sdf_dataset:
 
       # Process the input data
       sdf_data = tf.reshape(sdf_data, shape=[-1, 4])
@@ -457,11 +470,17 @@ def main_function(experiment_directory, continue_from, batch_split):
       sdf_gt = tf.expand_dims(sdf_data[:, 3], axis=1)
 
       if enforce_minmax:
-        sdf_gt = tf.clip_by_value(sdf_gt, minT, maxT)
+        sdf_gt = tf.clip_by_value(sdf_gt, min_t, max_t)
 
       xyz = tf.split(xyz, batch_split)
-      indices = tf.split(tf.reshape(tf.tile(tf.expand_dims(
-          indices, axis=-1), multiples=[1, num_samp_per_scene]), shape=[-1]), batch_split)
+      indices = tf.split(
+          tf.reshape(
+              tf.tile(
+                  tf.expand_dims(
+                      indices, axis=-1),
+                  multiples=[1, num_samp_per_scene]),
+              shape=[-1]),
+          batch_split)
 
       sdf_gt = tf.split(sdf_gt, batch_split)
 
@@ -474,13 +493,13 @@ def main_function(experiment_directory, continue_from, batch_split):
 
           batch_vecs = lat_vecs(indices[i])
 
-          input = tf.concat([batch_vecs, xyz[i]], axis=1)
+          inp = tf.concat([batch_vecs, xyz[i]], axis=1)
 
           # NN optimization
-          pred_sdf = decoder(input, training=True)
+          pred_sdf = decoder(inp, training=True)
 
           if enforce_minmax:
-            pred_sdf = tf.clip_by_value(pred_sdf, minT, maxT)
+            pred_sdf = tf.clip_by_value(pred_sdf, min_t, max_t)
 
           chunk_loss = loss_l1(
               pred_sdf, sdf_gt[i]) / num_sdf_samples
@@ -503,7 +522,7 @@ def main_function(experiment_directory, continue_from, batch_split):
         grad_lat_vecs += tape.gradient(
             chunk_loss, lat_vecs.trainable_weights)
 
-      logging.debug("loss = {}".format(batch_loss))
+      logging.debug("loss = %f", batch_loss)
 
       loss_log.append(batch_loss)
 
