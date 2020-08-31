@@ -89,7 +89,7 @@ class Decoder(tf.keras.Model):
 
   # input: N x (L+3)
 
-  def call(self, inp):
+  def call(self, inp, training=False):
     xyz = inp[:, -3:]
 
     if inp.shape[1] > 3 and self.latent_dropout:
@@ -116,7 +116,7 @@ class Decoder(tf.keras.Model):
             and not self.weight_norm
         ):
           bn = getattr(self, "bn" + str(layer))
-          x = bn(x)
+          x = bn(x, training=training)
         x = self.relu(x)
         if self.dropout is not None and layer in self.dropout:
           dp = getattr(self, "dp" + str(layer))
