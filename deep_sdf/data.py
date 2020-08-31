@@ -1,15 +1,27 @@
-#!/usr/bin/env python3
-# Copyright 2004-present Facebook. All Rights Reserved.
+# Copyright 2020 The TensorFlow Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+""" NO COMMENT NOW"""
 
+
+import os
+import random
 import glob
 import logging
 import numpy as np
-import os
-import random
+import tensorflow as tf
 
 import deep_sdf.workspace as ws
-
-import tensorflow as tf
 
 
 def get_instance_filenames(data_source, split):
@@ -28,8 +40,8 @@ def get_instance_filenames(data_source, split):
           #     'Requested non-existent file "' + instance_filename + "'"
           # )
           logging.warning(
-              "Requested non-existent file '{}'".format(
-                  instance_filename)
+              "Requested non-existent file '%s'",
+              instance_filename
           )
         npzfiles += [instance_filename]
   return npzfiles
@@ -38,13 +50,9 @@ def get_instance_filenames(data_source, split):
 class NoMeshFileError(RuntimeError):
   """Raised when a mesh file is not found in a shape directory"""
 
-  pass
-
 
 class MultipleMeshFileError(RuntimeError):
   """"Raised when a there a multiple mesh files in a shape directory"""
-
-  pass
 
 
 def find_mesh_in_directory(shape_dir):
@@ -152,8 +160,6 @@ class SDFSamples(object):
       shuffle=True,
       epoch=2001,
       load_ram=False,
-      print_filename=False,
-      num_files=1000000,
   ):
     self.subsample = subsample
     self.batch_sizd = batch_size
@@ -164,10 +170,8 @@ class SDFSamples(object):
     self.npyfiles = get_instance_filenames(data_source, split)
 
     logging.debug(
-        "using "
-        + str(len(self.npyfiles))
-        + " shapes from data source "
-        + data_source
+        "using %s shapes from data source %s ", str(
+            len(self.npyfiles)), data_source
     )
 
     self.load_ram = load_ram
@@ -176,7 +180,7 @@ class SDFSamples(object):
 
     if load_ram:
       self.data_ram = []
-      for idx, f in enumerate(self.npyfiles):
+      for _, f in enumerate(self.npyfiles):
         filename = os.path.join(
             self.data_source, ws.sdf_samples_subdir, f)
         npz = np.load(filename)
@@ -191,7 +195,7 @@ class SDFSamples(object):
             ]
         )
 
-    for idx, f in enumerate(self.npyfiles):
+    for _, f in enumerate(self.npyfiles):
       filename = os.path.join(
           self.data_source, ws.sdf_samples_subdir, f
       )

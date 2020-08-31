@@ -1,5 +1,18 @@
-#!/usr/bin/env python3
-# Copyright 2004-present Facebook. All Rights Reserved.
+# Copyright 2020 The TensorFlow Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+""" NO COMMENT NOW"""
+
 
 import argparse
 import json
@@ -8,11 +21,11 @@ import os
 import random
 import time
 
-import deep_sdf
-import deep_sdf.workspace as ws
-
 import numpy as np
 import tensorflow as tf
+
+import deep_sdf
+import deep_sdf.workspace as ws
 
 
 def reconstruct(
@@ -94,7 +107,8 @@ def reconstruct(
 if __name__ == "__main__":
 
   arg_parser = argparse.ArgumentParser(
-      description="Use a trained DeepSDF decoder to reconstruct a shape given SDF "
+      description="Use a trained DeepSDF decoder to \
+        reconstruct a shape given SDF "
       + "samples."
   )
   arg_parser.add_argument(
@@ -102,7 +116,8 @@ if __name__ == "__main__":
       "-e",
       dest="experiment_directory",
       required=True,
-      help="The experiment directory which includes specifications and saved model "
+      help="The experiment directory which includes \
+        specifications and saved model "
       + "files to use for reconstruction",
   )
   arg_parser.add_argument(
@@ -110,7 +125,8 @@ if __name__ == "__main__":
       "-c",
       dest="checkpoint",
       default="latest",
-      help="The checkpoint weights to use. This can be a number indicated an epoch "
+      help="The checkpoint weights to use. \
+        This can be a number indicated an epoch "
       + "or 'latest' for the latest weights (this is the default)",
   )
   arg_parser.add_argument(
@@ -156,9 +172,9 @@ if __name__ == "__main__":
   specs_filename = os.path.join(args.experiment_directory, "specs.json")
 
   if not os.path.isfile(specs_filename):
-    raise Exception(
-        'The experiment directory does not include specifications file "specs.json"'
-    )
+    raise Exception('The experiment directory does not\
+      include specifications file "specs.json"'
+                    )
 
   specs = json.load(open(specs_filename))
 
@@ -169,7 +185,8 @@ if __name__ == "__main__":
   decoder = arch.Decoder(latent_size, **specs["NetworkSpecs"])
 
   model_filename = os.path.join(
-      args.experiment_directory, ws.model_params_subdir, args.checkpoint + ".ckpt"
+      args.experiment_directory, ws.model_params_subdir,
+      args.checkpoint + ".ckpt"
   )
   ckpt = tf.train.Checkpoint(
       decoder=decoder, epoch=tf.Variable(0, dtype=tf.int64))
@@ -219,7 +236,7 @@ if __name__ == "__main__":
     full_filename = os.path.join(
         args.data_source, ws.sdf_samples_subdir, npz)
 
-    logging.debug("loading {}".format(npz))
+    logging.debug("loading %s", npz)
 
     data_sdf = deep_sdf.data.read_sdf_samples_into_ram(full_filename)
 
@@ -247,7 +264,7 @@ if __name__ == "__main__":
       ):
         continue
 
-      logging.info("reconstructing {}".format(npz))
+      logging.info("reconstructing %s", npz)
 
       data_sdf[0] = data_sdf[0][tf.random.shuffle(
           tf.range(start=0, limit=data_sdf[0].shape[0]))]
@@ -266,12 +283,12 @@ if __name__ == "__main__":
           lr=5e-3,
           l2reg=True,
       )
-      logging.debug("reconstruct time: {}".format(time.time() - start))
+      logging.debug("reconstruct time: %s", time.time() - start)
       err_sum += err
-      logging.debug("current_error avg: {}".format((err_sum / (ii + 1))))
+      logging.debug("current_error avg: %s", (err_sum / (ii + 1)))
       logging.debug(ii)
 
-      logging.debug("latent: {}".format(latent.detach().cpu().numpy()))
+      logging.debug("latent: %s", latent.numpy())
 
       if not os.path.exists(os.path.dirname(mesh_filename)):
         os.makedirs(os.path.dirname(mesh_filename))
@@ -281,7 +298,7 @@ if __name__ == "__main__":
         deep_sdf.mesh.create_mesh(
             decoder, latent, mesh_filename, N=256, max_batch=int(2 ** 18)
         )
-        logging.debug("total time: {}".format(time.time() - start))
+        logging.debug("total time: %s", time.time() - start)
 
       if not os.path.exists(os.path.dirname(latent_filename)):
         os.makedirs(os.path.dirname(latent_filename))

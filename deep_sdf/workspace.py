@@ -1,5 +1,17 @@
-#!/usr/bin/env python3
-# Copyright 2004-present Facebook. All Rights Reserved.
+# Copyright 2020 The TensorFlow Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+""" NO COMMENT NOW"""
 
 import json
 import os
@@ -27,8 +39,10 @@ def load_experiment_specifications(experiment_directory):
 
   if not os.path.isfile(filename):
     raise Exception(
-        "The experiment directory ({}) does not include specifications file "
-        + '"specs.json"'.format(experiment_directory)
+        "The experiment directory ({}) does not \
+          include specifications file "
+        .format(experiment_directory)
+        + '"specs.json"'
     )
 
   return json.load(open(filename))
@@ -52,7 +66,7 @@ def load_model_parameters(experiment_directory, checkpoint, decoder):
   return epoch
 
 
-def build_decoder(experiment_directory, experiment_specs):
+def build_decoder(experiment_specs):
 
   arch = __import__(
       "networks." + experiment_specs["NetworkArch"], fromlist=["Decoder"]
@@ -67,10 +81,10 @@ def build_decoder(experiment_directory, experiment_specs):
 
 
 def load_decoder(
-    experiment_directory, experiment_specs, checkpoint, data_parallel=True
+    experiment_directory, experiment_specs, checkpoint
 ):
 
-  decoder = build_decoder(experiment_directory, experiment_specs)
+  decoder = build_decoder(experiment_specs)
   epoch = load_model_parameters(experiment_directory, checkpoint, decoder)
 
   return (decoder, epoch)
@@ -112,42 +126,42 @@ def get_reconstructed_code_filename(
 
 def get_evaluation_dir(experiment_dir, checkpoint, create_if_nonexistent=False):
 
-  dir = os.path.join(experiment_dir, evaluation_subdir, checkpoint)
+  dir_path = os.path.join(experiment_dir, evaluation_subdir, checkpoint)
 
-  if create_if_nonexistent and not os.path.isdir(dir):
-    os.makedirs(dir)
+  if create_if_nonexistent and not os.path.isdir(dir_path):
+    os.makedirs(dir_path)
 
-  return dir
+  return dir_path
 
 
 def get_model_params_dir(experiment_dir, create_if_nonexistent=False):
 
-  dir = os.path.join(experiment_dir, model_params_subdir)
+  dir_path = os.path.join(experiment_dir, model_params_subdir)
 
-  if create_if_nonexistent and not os.path.isdir(dir):
-    os.makedirs(dir)
+  if create_if_nonexistent and not os.path.isdir(dir_path):
+    os.makedirs(dir_path)
 
-  return dir
+  return dir_path
 
 
 def get_optimizer_params_dir(experiment_dir, create_if_nonexistent=False):
 
-  dir = os.path.join(experiment_dir, optimizer_params_subdir)
+  dir_path = os.path.join(experiment_dir, optimizer_params_subdir)
 
-  if create_if_nonexistent and not os.path.isdir(dir):
-    os.makedirs(dir)
+  if create_if_nonexistent and not os.path.isdir(dir_path):
+    os.makedirs(dir_path)
 
-  return dir
+  return dir_path
 
 
 def get_latent_codes_dir(experiment_dir, create_if_nonexistent=False):
 
-  dir = os.path.join(experiment_dir, latent_codes_subdir)
+  dir_path = os.path.join(experiment_dir, latent_codes_subdir)
 
-  if create_if_nonexistent and not os.path.isdir(dir):
-    os.makedirs(dir)
+  if create_if_nonexistent and not os.path.isdir(dir_path):
+    os.makedirs(dir_path)
 
-  return dir
+  return dir_path
 
 
 def get_normalization_params_filename(

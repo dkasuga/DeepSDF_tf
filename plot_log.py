@@ -1,39 +1,52 @@
-#!/usr/bin/env python3
-# Copyright 2004-present Facebook. All Rights Reserved.
+# Copyright 2020 The TensorFlow Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+""" NO COMMENT NOW"""
+
 
 import logging
-import matplotlib.pyplot as plt
-import numpy as np
 import os
 import pickle
+import numpy as np
+import matplotlib.pyplot as plt
 import deep_sdf
 import deep_sdf.workspace as ws
 
 
-def running_mean(x, N):
+def running_mean(x, n):
   cumsum = np.cumsum(np.insert(x, 0, 0))
-  return (cumsum[N:] - cumsum[:-N]) / float(N)
+  return (cumsum[n:] - cumsum[:-n]) / float(n)
 
 
-def load_logs(experiment_directory, type):
+def load_logs(experiment_directory, logs_type):
 
   full_filename = os.path.join(experiment_directory, ws.logs_filename)
   with open(full_filename, 'rb') as f:
     logs = pickle.load(f)
 
-  logging.info("latest epoch is {}".format(logs["epoch"]))
+  logging.info("latest epoch is %s", logs["epoch"])
 
   num_iters = len(logs["loss"])
   iters_per_epoch = num_iters / logs["epoch"]
 
-  logging.info("{} iters per epoch".format(iters_per_epoch))
+  logging.info("%s iters per epoch", iters_per_epoch)
 
   smoothed_loss_41 = running_mean(logs["loss"], 41)
   smoothed_loss_1601 = running_mean(logs["loss"], 1601)
 
-  fig, ax = plt.subplots()
+  _, ax = plt.subplots()
 
-  if type == "loss":
+  if logs_type == "loss":
 
     ax.plot(
         np.arange(num_iters) / iters_per_epoch,
@@ -49,7 +62,7 @@ def load_logs(experiment_directory, type):
 
     ax.set(xlabel="Epoch", ylabel="Loss", title="Training Loss")
 
-  elif type == "learning_rate":
+  elif logs_type == "learning_rate":
     combined_lrs = np.array(logs["learning_rate"])
 
     ax.plot(
@@ -60,23 +73,23 @@ def load_logs(experiment_directory, type):
     )
     ax.set(xlabel="Epoch", ylabel="Learning Rate", title="Learning Rates")
 
-  elif type == "time":
+  elif logs_type == "time":
     ax.plot(logs["timing"], "#833eb7")
     ax.set(xlabel="Epoch", ylabel="Time per Epoch (s)", title="Timing")
 
-  elif type == "lat_mag":
+  elif logs_type == "lat_mag":
     ax.plot(logs["latent_magnitude"])
     ax.set(xlabel="Epoch", ylabel="Magnitude",
            title="Latent Vector Magnitude")
 
-  elif type == "param_mag":
-    for _name, mags in logs["param_magnitude"].items():
+  elif logs_type == "param_mag":
+    for _, mags in logs["param_magnitude"].items():
       ax.plot(mags)
     ax.set(xlabel="Epoch", ylabel="Magnitude", title="Parameter Magnitude")
     ax.legend(logs["param_magnitude"].keys())
 
   else:
-    raise Exception('unrecognized plot type "{}"'.format(type))
+    raise Exception('unrecognized plot type "{}"'.format(logs_type))
 
   ax.grid()
   plt.show()
@@ -94,7 +107,8 @@ if __name__ == "__main__":
       dest="experiment_directory",
       required=True,
       help="The experiment directory. This directory should include experiment "
-      + "specifications in 'specs.json', and logging will be done in this directory "
+      + "specifications in 'specs.json', \
+        and logging will be done in this directory "
       + "as well",
   )
   arg_parser.add_argument("--type", "-t", dest="type", default="loss")

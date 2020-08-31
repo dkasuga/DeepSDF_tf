@@ -1,10 +1,24 @@
-#!/usr/bin/env python3
-# Copyright 2004-present Facebook. All Rights Reserved.
+# Copyright 2020 The TensorFlow Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+""" NO COMMENT NOW"""
+
 
 import argparse
 import json
-import numpy as np
+
 import os
+import numpy as np
 import tensorflow as tf
 
 import deep_sdf
@@ -17,7 +31,8 @@ def code_to_mesh(experiment_directory, checkpoint, keep_normalized=False):
 
   if not os.path.isfile(specs_filename):
     raise Exception(
-        'The experiment directory does not include specifications file "specs.json"'
+        'The experiment directory does not include\
+           specifications file "specs.json"'
     )
 
   specs = json.load(open(specs_filename))
@@ -100,14 +115,16 @@ def code_to_mesh(experiment_directory, checkpoint, keep_normalized=False):
 if __name__ == "__main__":
 
   arg_parser = argparse.ArgumentParser(
-      description="Use a trained DeepSDF decoder to generate a mesh given a latent code."
+      description="Use a trained DeepSDF decoder to\
+         generate a mesh given a latent code."
   )
   arg_parser.add_argument(
       "--experiment",
       "-e",
       dest="experiment_directory",
       required=True,
-      help="The experiment directory which includes specifications and saved model "
+      help="The experiment directory which includes\
+         specifications and saved model "
       + "files to use for reconstruction",
   )
   arg_parser.add_argument(
@@ -115,7 +132,8 @@ if __name__ == "__main__":
       "-c",
       dest="checkpoint",
       default="latest",
-      help="The checkpoint weights to use. This can be a number indicated an epoch "
+      help="The checkpoint weights to use. \
+        This can be a number indicated an epoch "
       + "or 'latest' for the latest weights (this is the default)",
   )
   arg_parser.add_argument(
